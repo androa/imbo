@@ -68,6 +68,9 @@ $container->imageResource = $container->shared(function(Container $container) {
 $container->userResource = $container->shared(function(Container $container) {
     return new Resource\User();
 });
+$container->statusResource = $container->shared(function(Container $container) {
+    return new Resource\Status();
+});
 
 // Create the database entry
 $container->database = $container->shared(function(Container $container) {
@@ -116,7 +119,7 @@ $container->response = new Response();
 // Event manager
 $container->eventManager = $container->shared(function(Container $container) {
     $listeners = $container->config['eventListeners'];
-    $manager = new EventManager($container->request, $container->response, $container->image);
+    $manager = new EventManager($container->request, $container->response, $container->database, $container->storage, $container->image);
 
     foreach ($listeners as $def) {
         if (empty($def['listener'])) {

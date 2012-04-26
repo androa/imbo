@@ -22,45 +22,69 @@
  * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
  * IN THE SOFTWARE.
  *
- * @package Core
+ * @package TestSuite\UnitTests
  * @author Christer Edvartsen <cogo@starzinger.net>
  * @copyright Copyright (c) 2011-2012, Christer Edvartsen <cogo@starzinger.net>
  * @license http://www.opensource.org/licenses/mit-license MIT License
  * @link https://github.com/imbo/imbo
  */
 
-namespace Imbo;
+namespace Imbo\UnitTest\Database;
+
+use Imbo\Database\MongoDB;
 
 /**
- * Version class
- *
- * @package Core
+ * @package TestSuite\UnitTests
  * @author Christer Edvartsen <cogo@starzinger.net>
  * @copyright Copyright (c) 2011-2012, Christer Edvartsen <cogo@starzinger.net>
  * @license http://www.opensource.org/licenses/mit-license MIT License
  * @link https://github.com/imbo/imbo
- * @codeCoverageIgnore
+ * @covers Imbo\Database\MongoDB
  */
-class Version {
+class GridFSTest extends \PHPUnit_Framework_TestCase {
     /**
-     * The current version
-     *
-     * This string will be replaced by pear when the package is installed
-     *
-     * @var string
+     * @var Imbo\Database\MongoDB
      */
-    static private $version = '@package_version@';
+    private $driver;
 
     /**
-     * Get the version number only
-     *
-     * @return string
+     * @var Mongo
      */
-    static public function getVersionNumber() {
-        if (strpos(self::$version, '@package_version') === 0) {
-            return 'dev';
+    private $mongo;
+
+    /**
+     * Setup method
+     */
+    public function setUp() {
+        if (!extension_loaded('mongo')) {
+            $this->markTestSkipped('pecl/mongo is required to run this test');
         }
 
-        return self::$version;
+        $this->mongo = $this->getMockBuilder('Mongo')->disableOriginalConstructor()->getMock();
+        $this->driver = new MongoDB(array(), $this->mongo);
+    }
+
+    /**
+     * Teardown method
+     */
+    public function tearDown() {
+        $this->mongo = null;
+        $this->driver = null;
+    }
+
+    /**
+     * @covers Imbo\Database\MongoDB::getStatus
+     */
+    public function testGetStatusWhenMongoIsNotConnectable() {
+        $this->mongo->expects($this->once())->method('connect')->will($this->returnValue(false));
+        $this->assertFalse($this->driver->getStatus());
+    }
+
+    /**
+     * @covers Imbo\Database\MongoDB::getStatus
+     */
+    public function testGetStatusWhenMongoIsConnectable() {
+        $this->mongo->expects($this->once())->method('connect')->will($this->returnValue(true));
+        $this->assertTrue($this->driver->getStatus());
     }
 }

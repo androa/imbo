@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<phpunit colors="true" bootstrap="tests/bootstrap.php">
+<phpunit colors="false" bootstrap="tests/bootstrap.php">
   <testsuites>
     <testsuite name="imbo">
       <directory>tests/Imbo/UnitTest</directory>
@@ -20,6 +20,9 @@
     <!-- Include paths -->
     <includePath>./tests</includePath>
     <includePath>./library</includePath>
+    <includePath>./vendor/mikey179/vfsStream/src/main/php</includePath>
+    <includePath>./vendor/doctrine/dbal/lib</includePath>
+    <includePath>./vendor/doctrine/common/lib</includePath>
   </php>
 
   <logging>
