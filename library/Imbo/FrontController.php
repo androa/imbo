@@ -33,6 +33,7 @@ namespace Imbo;
 
 use Imbo\Http\Request\RequestInterface,
     Imbo\Http\Response\ResponseInterface,
+    Imbo\Resource\ResourceInterface,
     Imbo\Exception\RuntimeException,
     Imbo\Exception,
     Imbo\Image\Image;
@@ -50,7 +51,7 @@ class FrontController {
     /**
      * Dependency injection container
      *
-     * @var Imbo\Container
+     * @var Container
      */
     private $container;
 
@@ -60,12 +61,12 @@ class FrontController {
      * @var array
      */
     static private $supportedHttpMethods = array(
-        RequestInterface::METHOD_GET     => true,
-        RequestInterface::METHOD_POST    => true,
-        RequestInterface::METHOD_PUT     => true,
-        RequestInterface::METHOD_HEAD    => true,
-        RequestInterface::METHOD_DELETE  => true,
-        RequestInterface::METHOD_BREW    => true,
+        RequestInterface::METHOD_GET    => true,
+        RequestInterface::METHOD_POST   => true,
+        RequestInterface::METHOD_PUT    => true,
+        RequestInterface::METHOD_HEAD   => true,
+        RequestInterface::METHOD_DELETE => true,
+        RequestInterface::METHOD_BREW   => true,
     );
 
     /**
@@ -76,17 +77,17 @@ class FrontController {
      * @var array
      */
     static private $resourceClasses = array(
-        'image'    => 'Imbo\Resource\Image',
-        'metadata' => 'Imbo\Resource\Metadata',
-        'images'   => 'Imbo\Resource\Images',
-        'user'     => 'Imbo\Resource\User',
-        'status'   => 'Imbo\Resource\Status',
+        ResourceInterface::STATUS   => 'Imbo\Resource\Status',
+        ResourceInterface::USER     => 'Imbo\Resource\User',
+        ResourceInterface::IMAGES   => 'Imbo\Resource\Images',
+        ResourceInterface::IMAGE    => 'Imbo\Resource\Image',
+        ResourceInterface::METADATA => 'Imbo\Resource\Metadata',
     );
 
     /**
      * Class constructor
      *
-     * @param Imbo\Container $container A container instance
+     * @param Container $container A container instance
      */
     public function __construct(Container $container) {
         $this->container = $container;
@@ -95,9 +96,9 @@ class FrontController {
     /**
      * Create a resource object based on the request
      *
-     * @param Imbo\Http\Request\RequestInterface $request A request instance
-     * @return Imbo\Resource\ResourceInterface
-     * @throws Imbo\Exception\RuntimeException
+     * @param RequestInterface $request A request instance
+     * @return ResourceInterface
+     * @throws RuntimeException
      */
     private function resolveResource(RequestInterface $request) {
         // Fetch current path
@@ -105,11 +106,11 @@ class FrontController {
 
         // Possible patterns to match where the most accessed match is placed first
         $routes = array(
-            'image'    => '#^/users/(?<publicKey>[a-zA-Z0-9]{3,})/images/(?<imageIdentifier>[a-f0-9]{32})(/|.(?<extension>gif|jpg|png))?$#',
-            'images'   => '#^/users/(?<publicKey>[a-zA-Z0-9]{3,})/images/?$#',
-            'metadata' => '#^/users/(?<publicKey>[a-zA-Z0-9]{3,})/images/(?<imageIdentifier>[a-f0-9]{32})(/|.(?<extension>gif|jpg|png)/)meta/?$#',
-            'user'     => '#^/users/(?<publicKey>[a-zA-Z0-9]{3,})/?$#',
-            'status'   => '#^/status/?#',
+            ResourceInterface::IMAGE    => '#^/users/(?<publicKey>[a-zA-Z0-9]{3,})/images/(?<imageIdentifier>[a-f0-9]{32})(/|.(?<extension>gif|jpg|png))?$#',
+            ResourceInterface::STATUS   => '#^/status(/|(\.(?<extension>json|html|xml)))?$#',
+            ResourceInterface::IMAGES   => '#^/users/(?<publicKey>[a-zA-Z0-9]{3,})/images(/|(\.(?<extension>json|html|xml)))?$#',
+            ResourceInterface::METADATA => '#^/users/(?<publicKey>[a-zA-Z0-9]{3,})/images/(?<imageIdentifier>[a-f0-9]{32})/meta(/|\.(?<extension>json|html|xml))?$#',
+            ResourceInterface::USER     => '#^/users/(?<publicKey>[a-zA-Z0-9]{3,})(/|\.(?<extension>json|html|xml))?$#',
         );
 
         // Initialize matches
@@ -126,6 +127,9 @@ class FrontController {
             throw new RuntimeException('Not found', 404);
         }
 
+        // Set the resource name
+        $request->setResource($resourceName);
+
         // Extract some information from the path and store in the request instance
         if (!empty($matches['publicKey'])) {
             $request->setPublicKey($matches['publicKey']);
@@ -136,7 +140,7 @@ class FrontController {
         }
 
         if (isset($matches['extension'])) {
-            $request->setImageExtension($matches['extension']);
+            $request->setExtension($matches['extension']);
         }
 
         // Append "Resource" to the resource name to match the entry in the container
@@ -159,9 +163,9 @@ class FrontController {
     /**
      * Handle a request
      *
-     * @param Imbo\Http\Request\RequestInterface $request The request object
-     * @param Imbo\Http\Response\ResponseInterface $response The response object
-     * @throws Imbo\Exception\RuntimeException
+     * @param RequestInterface $request The request object
+     * @param ResponseInterface $response The response object
+     * @throws RuntimeException
      */
     public function handle(RequestInterface $request, ResponseInterface $response) {
         $httpMethod = $request->getMethod();
@@ -177,8 +181,17 @@ class FrontController {
         // Fetch a resource instance based on the request path
         $resource = $this->resolveResource($request);
 
-        // Add Allow to all responses
-        $response->getHeaders()->set('Allow', implode(', ', $resource->getAllowedMethods()));
+        // Add some response headers
+        $responseHeaders = $response->getHeaders();
+
+        // Inform the user agent of which methods are allowed against this resource
+        $responseHeaders->set('Allow', implode(', ', $resource->getAllowedMethods()));
+
+        // Add Accept to Vary if the client has not specified a specific extension, in which we
+        // won't do any content negotiation at all.
+        if (!$request->getExtension()) {
+            $responseHeaders->set('Vary', 'Accept');
+        }
 
         // Fetch the real image identifier (PUT only) or the one from the URL (if present)
         if (($identifier = $request->getRealImageIdentifier()) || ($identifier = $request->getImageIdentifier())) {

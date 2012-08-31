@@ -33,6 +33,7 @@
 namespace Imbo\Image\Transformation;
 
 use Imbo\Image\ImageInterface,
+    Imbo\Exception\TransformationException,
     Imagick;
 
 /**
@@ -47,25 +48,35 @@ use Imbo\Image\ImageInterface,
  */
 interface TransformationInterface {
     /**
+     * Get the name of the transformation
+     *
+     * The name should be the one used in the query to trigger the transformation. Usually this is
+     * the last part of the class name, in lower case.
+     *
+     * @return string
+     */
+    function getName();
+
+    /**
      * Get the imagick instance
      *
-     * @return Imagick
+     * @return \Imagick
      */
     function getImagick();
 
     /**
      * Set the imagick instance
      *
-     * @param Imagick $imagick
-     * @return Imbo\Image\Transformation\TransformationInterface
+     * @param \Imagick $imagick
+     * @return TransformationInterface
      */
     function setImagick(Imagick $imagick);
 
     /**
      * Apply a transformation to an image object
      *
-     * @param Imbo\Image\ImageInterface Image instance
-     * @throws Imbo\Exception\TransformationException
+     * @param ImageInterface Image instance
+     * @throws TransformationException
      */
     function applyToImage(ImageInterface $image);
 }

@@ -31,11 +31,7 @@
 
 namespace Imbo\EventManager;
 
-use Imbo\Http\Request\RequestInterface,
-    Imbo\Http\Response\ResponseInterface,
-    Imbo\Database\DatabaseInterface,
-    Imbo\Storage\StorageInterface,
-    Imbo\Image\ImageInterface;
+use Imbo\Container;
 
 /**
  * Event class
@@ -55,100 +51,34 @@ class Event implements EventInterface {
     private $name;
 
     /**
-     * Request instance
+     * Container instance
      *
-     * @var Imbo\Http\Request\RequestInterface
+     * @var Container
      */
-    private $request;
-
-    /**
-     * Response instance
-     *
-     * @var Imbo\Http\Response\ResponseInterface
-     */
-    private $response;
-
-    /**
-     * Database driver
-     *
-     * @var Imbo\Database\DatabaseInterface
-     */
-    private $database;
-
-    /**
-     * Storage driver
-     *
-     * @var Imbo\Storage\StorageInterface
-     */
-    private $storage;
-
-    /**
-     * Image instance
-     *
-     * @var Imbo\Image\ImageInterface
-     */
-    private $image;
+    private $container;
 
     /**
      * Class contsructor
      *
      * @param string $name The name of the current event
-     * @param Imbo\Http\Request\RequestInterface $request Request instance
-     * @param Imbo\Http\Response\ResponseInterface $response Response instance
-     * @param Imbo\Database\DatabaseInterface $database Database driver
-     * @param Imbo\Storage\StorageInterface $storage Storage driver
-     * @param Imbo\Image\ImageInterface $image Image instance
+     * @param Container $container Container instance
      */
-    public function __construct($name, RequestInterface $request, ResponseInterface $response,
-                                DatabaseInterface $database, StorageInterface $storage,
-                                ImageInterface $image = null) {
-        $this->name     = $name;
-        $this->request  = $request;
-        $this->response = $response;
-        $this->database = $database;
-        $this->storage  = $storage;
-        $this->image    = $image;
+    public function __construct($name, Container $container) {
+        $this->name = $name;
+        $this->container = $container;
     }
 
     /**
-     * @see Imbo\EventManager\EventInterface::getName()
+     * {@inheritdoc}
      */
     public function getName() {
         return $this->name;
     }
 
     /**
-     * @see Imbo\EventManager\EventInterface::getRequest()
+     * {@inheritdoc}
      */
-    public function getRequest() {
-        return $this->request;
-    }
-
-    /**
-     * @see Imbo\EventManager\EventInterface::getResponse()
-     */
-    public function getResponse() {
-        return $this->response;
-    }
-
-    /**
-     * @see Imbo\EventManager\EventInterface::getDatabase()
-     */
-    public function getDatabase() {
-        return $this->database;
-    }
-
-    /**
-     * @see Imbo\EventManager\EventInterface::getStorage()
-     */
-    public function getStorage() {
-        return $this->storage;
-    }
-
-    /**
-     * @see Imbo\EventManager\EventInterface::getImage()
-     */
-    public function getImage() {
-        return $this->image;
+    public function getContainer() {
+        return $this->container;
     }
 }

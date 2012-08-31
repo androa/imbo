@@ -8,13 +8,13 @@ build   = "#{basedir}/build"
 source  = "#{basedir}/library"
 
 desc "Task used by Jenkins-CI"
-task :jenkins => [:prepare, :lint, :test, :apidocs, :phploc, :phpcs, :phpcb, :phpcpd, :pdepend, :phpmd, :phpmd_html]
+task :jenkins => [:prepare, :lint, :composer, :test, :apidocs, :phploc, :phpcs, :phpcb, :phpcpd, :pdepend, :phpmd, :phpmd_html]
 
 desc "Task used by Travis-CI"
-task :travis => [:test]
+task :travis => [:composer, :test]
 
 desc "Default task"
-task :default => [:lint, :test]
+task :default => [:lint, :composer, :test]
 
 desc "Clean up and create artifact directories"
 task :prepare do
@@ -23,6 +23,21 @@ task :prepare do
 
   ["coverage", "logs", "docs", "code-browser", "pdepend"].each do |d|
     FileUtils.mkdir "#{build}/#{d}"
+  end
+end
+
+desc "Fetch or update composer.phar and update the dependencies"
+task :composer do
+  if ENV["TRAVIS"] == "true"
+    system "composer --no-ansi update --dev"
+  else
+    if File.exists?("composer.phar")
+      system "php -d \"apc.enable_cli=0\" composer.phar self-update"
+    else
+      system "curl -s http://getcomposer.org/installer | php -d \"apc.enable_cli=0\""
+    end
+
+    system "php -d \"apc.enable_cli=0\" composer.phar --no-ansi update --dev"
   end
 end
 
@@ -63,7 +78,7 @@ end
 
 desc "Generate API documentation using phpdoc (config in phpdoc.xml)"
 task :apidocs do
-  system "phpdoc"
+  system "phpdoc -d #{source} -t #{build}/docs"
 end
 
 desc "Check syntax on all php files in the project"
@@ -84,15 +99,13 @@ task :test do
 
     ini_file = Hash[`php --ini`.split("\n").map {|l| l.split(/:\s+/)}]["Loaded Configuration File"]
 
-    ["imagick", "mongo", "memcached", "APC"].each { |e|
-      system "wget http://pecl.php.net/get/#{e}"
-      system "tar -xzf #{e}"
-      system "sh -c \"cd #{e}-* && phpize && ./configure && make && sudo make install\""
-      system "sudo sh -c \"echo 'extension=#{e.downcase}.so' >> #{ini_file}\""
+    {"imagick" => "3.1.0RC2", "mongo" => "1.2.12", "memcached" => "2.0.1", "APC" => "3.1.12"}.each { |package, version|
+      filename = "#{package}-#{version}.tgz"
+      system "wget http://pecl.php.net/get/#{filename}"
+      system "tar -xzf #{filename}"
+      system "sh -c \"cd #{filename[0..-5]} && phpize && ./configure && make && sudo make install\""
+      system "sudo sh -c \"echo 'extension=#{package.downcase}.so' >> #{ini_file}\""
     }
-
-    system "curl -s http://getcomposer.org/installer | php"
-    system "php composer.phar --no-ansi install"
 
     system "sudo sh -c \"echo 'apc.enable_cli=on' >> #{ini_file}\""
 
@@ -273,7 +286,7 @@ end
 desc "Publish API docs"
 task :docs do
     system "git checkout master"
-    system "phpdoc"
+    Rake::Task["apidocs"].invoke
     wd = Dir.getwd
     Dir.chdir("/home/christer/dev/imbo-ghpages")
     system "git pull origin gh-pages"

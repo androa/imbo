@@ -58,28 +58,28 @@ class Request implements RequestInterface {
     /**
      * Query data
      *
-     * @var Imbo\Http\ParameterContainerInterface
+     * @var ParameterContainerInterface
      */
     private $query;
 
     /**
      * Request data
      *
-     * @var Imbo\Http\ParameterContainerInterface
+     * @var ParameterContainerInterface
      */
     private $request;
 
     /**
      * Server data
      *
-     * @var Imbo\Http\ServerContainerInterface
+     * @var ServerContainerInterface
      */
     private $server;
 
     /**
      * HTTP headers
      *
-     * @var Imbo\Http\HeaderContainer
+     * @var HeaderContainer
      */
     private $headers;
 
@@ -112,11 +112,26 @@ class Request implements RequestInterface {
     private $rawData;
 
     /**
-     * The current image extension (if any)
+     * The current extension (if any)
      *
      * @var string
      */
-    private $imageExtension;
+    private $extension;
+
+    /**
+     * The currently requested resorce name (as defined by the constants in
+     * Imbo\Resource\ResourceInterface).
+     *
+     * @var string
+     */
+    private $resource;
+
+    /**
+     * Chain of image transformations
+     *
+     * @var TransformationChain
+     */
+    private $transformationChain;
 
     /**
      * Class constructor
@@ -132,18 +147,22 @@ class Request implements RequestInterface {
         $this->headers = new HeaderContainer($this->server->getHeaders());
 
         $this->baseUrl = str_replace(rtrim($this->server->get('DOCUMENT_ROOT'), '/'), '', dirname($this->server->get('SCRIPT_FILENAME')));
-        $this->path = str_replace($this->baseUrl, '', $this->server->get('REDIRECT_URL'));
+        $this->path = str_replace($this->baseUrl, '', $this->server->get('REQUEST_URI'));
+
+        if (strpos($this->path, '?') !== false) {
+            $this->path = substr($this->path, 0, strpos($this->path, '?'));
+        }
     }
 
     /**
-     * @see Imbo\Http\Request\RequestInterface::getPublicKey()
+     * {@inheritdoc}
      */
     public function getPublicKey() {
         return $this->publicKey;
     }
 
     /**
-     * @see Imbo\Http\Request\RequestInterface::setPublicKey()
+     * {@inheritdoc}
      */
     public function setPublicKey($key) {
         $this->publicKey = $key;
@@ -152,14 +171,14 @@ class Request implements RequestInterface {
     }
 
     /**
-     * @see Imbo\Http\Request\RequestInterface::getPrivateKey()
+     * {@inheritdoc}
      */
     public function getPrivateKey() {
         return $this->privateKey;
     }
 
     /**
-     * @see Imbo\Http\Request\RequestInterface::setPrivateKey()
+     * {@inheritdoc}
      */
     public function setPrivateKey($key) {
         $this->privateKey = $key;
@@ -168,81 +187,93 @@ class Request implements RequestInterface {
     }
 
     /**
-     * @see Imbo\Http\Request\RequestInterface::getTransformations()
+     * {@inheritdoc}
      */
     public function getTransformations() {
-        $transformations = $this->query->get('t', array());
-        $chain = new TransformationChain();
+        if ($this->transformationChain === null) {
+            $this->transformationChain = new TransformationChain();
+            $transformations = $this->query->get('t', array());
 
-        foreach ($transformations as $transformation) {
-            // See if the transformation has any parameters
-            $pos = strpos($transformation, ':');
-            $urlParams = '';
+            foreach ($transformations as $transformation) {
+                // See if the transformation has any parameters
+                $pos = strpos($transformation, ':');
+                $urlParams = '';
 
-            if ($pos === false) {
-                // No params exist
-                $name = $transformation;
-            } else {
-                list($name, $urlParams) = explode(':', $transformation, 2);
-            }
-
-            // Initialize params for the transformation
-            $params = array();
-
-            // See if we have more than one parameter
-            if (strpos($urlParams, ',') !== false) {
-                $urlParams = explode(',', $urlParams);
-            } else {
-                $urlParams = array($urlParams);
-            }
-
-            foreach ($urlParams as $param) {
-                $pos = strpos($param, '=');
-
-                if ($pos !== false) {
-                    $params[substr($param, 0, $pos)] = substr($param, $pos + 1);
+                if ($pos === false) {
+                    // No params exist
+                    $name = $transformation;
+                } else {
+                    list($name, $urlParams) = explode(':', $transformation, 2);
                 }
-            }
 
-            // Closure to help fetch parameters
-            $p = function($key) use ($params) {
-                return isset($params[$key]) ? $params[$key] : null;
-            };
+                // Lowercase the name
+                $name = strtolower($name);
 
-            if ($name === 'border') {
-                $chain->border($p('color'), $p('width'), $p('height'));
-            } else if ($name === 'compress') {
-                $chain->compress($p('quality'));
-            } else if ($name === 'crop') {
-                $chain->crop($p('x'), $p('y'), $p('width'), $p('height'));
-            } else if ($name === 'flipHorizontally') {
-                $chain->flipHorizontally();
-            } else if ($name === 'flipVertically') {
-                $chain->flipVertically();
-            } else if ($name === 'maxSize') {
-                $chain->maxSize($p('width'), $p('height'));
-            } else if ($name === 'resize') {
-                $chain->resize($p('width'), $p('height'));
-            } else if ($name === 'rotate') {
-                $chain->rotate($p('angle'), $p('bg'));
-            } else if ($name === 'thumbnail') {
-                $chain->thumbnail($p('width'), $p('height'), $p('fit'));
-            } else if ($name === 'canvas') {
-                $chain->canvas($p('width'), $p('height'), $p('mode'), $p('x'), $p('y'), $p('bg'));
-            } else if ($name == 'transpose') {
-                $chain->transpose();
-            } else if ($name == 'transverse') {
-                $chain->transverse();
-            } else {
-                throw new InvalidArgumentException('Invalid transformation: ' . $name, 400);
+                // Initialize params for the transformation
+                $params = array();
+
+                // See if we have more than one parameter
+                if (strpos($urlParams, ',') !== false) {
+                    $urlParams = explode(',', $urlParams);
+                } else {
+                    $urlParams = array($urlParams);
+                }
+
+                foreach ($urlParams as $param) {
+                    $pos = strpos($param, '=');
+
+                    if ($pos !== false) {
+                        $params[substr($param, 0, $pos)] = substr($param, $pos + 1);
+                    }
+                }
+
+                // Closure to help fetch parameters
+                $p = function($key) use ($params) {
+                    return isset($params[$key]) ? $params[$key] : null;
+                };
+
+                if ($name === 'border') {
+                    $this->transformationChain->border($p('color'), $p('width'), $p('height'));
+                } else if ($name === 'compress') {
+                    $this->transformationChain->compress($p('quality'));
+                } else if ($name === 'crop') {
+                    $this->transformationChain->crop($p('x'), $p('y'), $p('width'), $p('height'));
+                } else if ($name === 'fliphorizontally') {
+                    $this->transformationChain->flipHorizontally();
+                } else if ($name === 'flipvertically') {
+                    $this->transformationChain->flipVertically();
+                } else if ($name === 'maxsize') {
+                    $this->transformationChain->maxSize($p('width'), $p('height'));
+                } else if ($name === 'resize') {
+                    $this->transformationChain->resize($p('width'), $p('height'));
+                } else if ($name === 'rotate') {
+                    $this->transformationChain->rotate($p('angle'), $p('bg'));
+                } else if ($name === 'thumbnail') {
+                    $this->transformationChain->thumbnail($p('width'), $p('height'), $p('fit'));
+                } else if ($name === 'canvas') {
+                    $this->transformationChain->canvas($p('width'), $p('height'), $p('mode'), $p('x'), $p('y'), $p('bg'));
+                } else if ($name == 'transpose') {
+                    $this->transformationChain->transpose();
+                } else if ($name == 'transverse') {
+                    $this->transformationChain->transverse();
+                } else {
+                    throw new InvalidArgumentException('Invalid transformation: ' . $name, 400);
+                }
             }
         }
 
-        return $chain;
+        return $this->transformationChain;
     }
 
     /**
-     * @see Imbo\Http\Request\RequestInterface::getScheme()
+     * {@inheritdoc}
+     */
+    public function hasTransformations() {
+        return $this->getExtension() || $this->getQuery()->has('t');
+    }
+
+    /**
+     * {@inheritdoc}
      */
     public function getScheme() {
         $https = strtolower($this->server->get('HTTPS'));
@@ -251,7 +282,7 @@ class Request implements RequestInterface {
     }
 
     /**
-     * @see Imbo\Http\Request\RequestInterface::getHost()
+     * {@inheritdoc}
      */
     public function getHost() {
         $host = $this->server->get('HTTP_HOST');
@@ -265,28 +296,28 @@ class Request implements RequestInterface {
     }
 
     /**
-     * @see Imbo\Http\Request\RequestInterface::getPort()
+     * {@inheritdoc}
      */
     public function getPort() {
         return $this->server->get('SERVER_PORT');
     }
 
     /**
-     * @see Imbo\Http\Request\RequestInterface::getBaseUrl()
+     * {@inheritdoc}
      */
     public function getBaseUrl() {
         return $this->baseUrl;
     }
 
     /**
-     * @see Imbo\Http\Request\RequestInterface::getPath()
+     * {@inheritdoc}
      */
     public function getPath() {
         return $this->path;
     }
 
     /**
-     * @see Imbo\Http\Request\RequestInterface::getUrl()
+     * {@inheritdoc}
      */
     public function getUrl() {
         $port = (int) $this->getPort();
@@ -315,14 +346,14 @@ class Request implements RequestInterface {
     }
 
     /**
-     * @see Imbo\Http\Request\RequestInterface::getImageIdentifier()
+     * {@inheritdoc}
      */
     public function getImageIdentifier() {
         return $this->imageIdentifier;
     }
 
     /**
-     * @see Imbo\Http\Request\RequestInterface::setImageIdentifier()
+     * {@inheritdoc}
      */
     public function setImageIdentifier($imageIdentifier) {
         $this->imageIdentifier = $imageIdentifier;
@@ -331,7 +362,7 @@ class Request implements RequestInterface {
     }
 
     /**
-     * @see Imbo\Http\Request\RequestInterface::getRealImageIdentifier()
+     * {@inheritdoc}
      */
     public function getRealImageIdentifier() {
         if ($this->rawData === null) {
@@ -342,30 +373,30 @@ class Request implements RequestInterface {
     }
 
     /**
-     * @see Imbo\Http\Request\RequestInterface::getImageExtension()
+     * {@inheritdoc}
      */
-    public function getImageExtension() {
-        return $this->imageExtension;
+    public function getExtension() {
+        return $this->extension;
     }
 
     /**
-     * @see Imbo\Http\Request\RequestInterface::setImageExtension()
+     * {@inheritdoc}
      */
-    public function setImageExtension($extension) {
-        $this->imageExtension = $extension;
+    public function setExtension($extension) {
+        $this->extension = $extension;
 
         return $this;
     }
 
     /**
-     * @see Imbo\Http\Request\RequestInterface::getMethod()
+     * {@inheritdoc}
      */
     public function getMethod() {
         return $this->server->get('REQUEST_METHOD');
     }
 
     /**
-     * @see Imbo\Http\Request\RequestInterface::getRawData()
+     * {@inheritdoc}
      */
     public function getRawData() {
         if ($this->rawData === null) {
@@ -376,7 +407,7 @@ class Request implements RequestInterface {
     }
 
     /**
-     * @see Imbo\Http\Request\RequestInterface::setRawData()
+     * {@inheritdoc}
      */
     public function setRawData($data) {
         $this->rawData = $data;
@@ -385,35 +416,35 @@ class Request implements RequestInterface {
     }
 
     /**
-     * @see Imbo\Http\Request\RequestInterface::getQuery()
+     * {@inheritdoc}
      */
     public function getQuery() {
         return $this->query;
     }
 
     /**
-     * @see Imbo\Http\Request\RequestInterface::getRequest()
+     * {@inheritdoc}
      */
     public function getRequest() {
         return $this->request;
     }
 
     /**
-     * @see Imbo\Http\Request\RequestInterface::getServer()
+     * {@inheritdoc}
      */
     public function getServer() {
         return $this->server;
     }
 
     /**
-     * @see Imbo\Http\Request\RequestInterface::getHeaders()
+     * {@inheritdoc}
      */
     public function getHeaders() {
         return $this->headers;
     }
 
     /**
-     * @see Imbo\Http\Request\RequestInterface::isUnsafe()
+     * {@inheritdoc}
      */
     public function isUnsafe() {
         $method = $this->getMethod();
@@ -421,5 +452,82 @@ class Request implements RequestInterface {
         return $method === RequestInterface::METHOD_POST ||
                $method === RequestInterface::METHOD_PUT ||
                $method === RequestInterface::METHOD_DELETE;
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function splitAcceptHeader($header) {
+        if (!$header) {
+            return array();
+        }
+
+        $values = array();
+
+        // Explode on , to get all media types
+        $mediaTypes = array_map('trim', explode(',', $header));
+
+        // Remove possible empty values due to poorly formatted headers
+        $mediaTypes = array_filter($mediaTypes);
+
+        foreach ($mediaTypes as $type) {
+            $quality = 1;
+
+            if (preg_match('/;\s*q=(\d\.?\d?)/', $type, $match)) {
+                $quality = (float) $match[1];
+
+                // Remove the matched string from the type
+                $type = substr($type, 0, -strlen($match[0]));
+            }
+
+            if ($quality) {
+                $values[$type] = $quality;
+            }
+        }
+
+        // Increase all quality values to be able to get a correct sort
+        $f = .00001;
+        $i = 0;
+
+        $values = array_reverse($values);
+        $factor = array();
+
+        foreach ($values as $type => $q) {
+            $values[$type] += ($f * ++$i);
+            $factor[$type] = $i;
+        }
+
+        // Sort the values and maintain key association
+        arsort($values);
+
+        // Decrease the values back to the original values
+        foreach ($values as $type => $q) {
+            $values[$type] -= $f * $factor[$type];
+        }
+
+        return $values;
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function getAcceptableContentTypes() {
+        return $this->splitAcceptHeader($this->headers->get('Accept'));
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function setResource($resource) {
+        $this->resource = $resource;
+
+        return $this;
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function getResource() {
+        return $this->resource;
     }
 }

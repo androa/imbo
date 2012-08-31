@@ -22,38 +22,43 @@
  * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
  * IN THE SOFTWARE.
  *
- * @package Http\Response
- * @subpackage Formatters
+ * @package Http
  * @author Christer Edvartsen <cogo@starzinger.net>
  * @copyright Copyright (c) 2011-2012, Christer Edvartsen <cogo@starzinger.net>
  * @license http://www.opensource.org/licenses/mit-license MIT License
  * @link https://github.com/imbo/imbo
  */
 
-namespace Imbo\Http\Response\Formatter;
+namespace Imbo\Http;
 
 /**
- * JSON formatter
+ * Content negotiation
  *
- * @package Http\Response
- * @subpackage Formatters
+ * @package Http
  * @author Christer Edvartsen <cogo@starzinger.net>
  * @copyright Copyright (c) 2011-2012, Christer Edvartsen <cogo@starzinger.net>
  * @license http://www.opensource.org/licenses/mit-license MIT License
  * @link https://github.com/imbo/imbo
  */
-class Json implements FormatterInterface {
+class ContentNegotiation {
     /**
-     * @see Imbo\Http\Response\Formatter\FormatterInterface::format()
+     * See if a mime type is accepted
+     *
+     * @param string $mimeType The mime type to check, for instance "image/png"
+     * @param array $acceptable An array of acceptable content types as keys and the quality as
+     *                          value
+     * @return boolean|double Returns the quality of the mime type if it is accepted, or false
+     *                        otherwise
      */
-    public function format(array $data) {
-        return json_encode($data);
-    }
+    public function isAcceptable($mimeType, array $acceptable) {
+        foreach ($acceptable as $type => $q) {
+            $pattern = '#^' . str_replace('*', '.*', $type) . '#';
 
-    /**
-     * @see Imbo\Http\Response\Formatter\FormatterInterface::getContentType()
-     */
-    public function getContentType() {
-        return 'application/json';
+            if (preg_match($pattern, $mimeType)) {
+                return $q;
+            }
+        }
+
+        return false;
     }
 }

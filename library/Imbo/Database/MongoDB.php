@@ -67,14 +67,14 @@ class MongoDB implements DatabaseInterface {
     /**
      * Mongo instance
      *
-     * @var Mongo
+     * @var \Mongo
      */
     private $mongo;
 
     /**
      * The collection instance used by the driver
      *
-     * @var MongoCollection
+     * @var \MongoCollection
      */
     private $collection;
 
@@ -100,8 +100,8 @@ class MongoDB implements DatabaseInterface {
      * Class constructor
      *
      * @param array $params Parameters for the driver
-     * @param Mongo $mongo Mongo instance
-     * @param MongoCollection $collection MongoCollection instance
+     * @param \Mongo $mongo Mongo instance
+     * @param \MongoCollection $collection MongoCollection instance
      */
     public function __construct(array $params = null, Mongo $mongo = null, MongoCollection $collection = null) {
         if ($params !== null) {
@@ -118,7 +118,7 @@ class MongoDB implements DatabaseInterface {
     }
 
     /**
-     * @see Imbo\Database\DatabaseInterface::insertImage()
+     * {@inheritdoc}
      */
     public function insertImage($publicKey, $imageIdentifier, ImageInterface $image) {
         $now = time();
@@ -160,7 +160,7 @@ class MongoDB implements DatabaseInterface {
     }
 
     /**
-     * @see Imbo\Database\DatabaseInterface::deleteImage()
+     * {@inheritdoc}
      */
     public function deleteImage($publicKey, $imageIdentifier) {
         try {
@@ -185,7 +185,7 @@ class MongoDB implements DatabaseInterface {
     }
 
     /**
-     * @see Imbo\Database\DatabaseInterface::updateMetadata()
+     * {@inheritdoc}
      */
     public function updateMetadata($publicKey, $imageIdentifier, array $metadata) {
         try {
@@ -206,7 +206,7 @@ class MongoDB implements DatabaseInterface {
     }
 
     /**
-     * @see Imbo\Database\DatabaseInterface::getMetadata()
+     * {@inheritdoc}
      */
     public function getMetadata($publicKey, $imageIdentifier) {
         try {
@@ -226,7 +226,7 @@ class MongoDB implements DatabaseInterface {
     }
 
     /**
-     * @see Imbo\Database\DatabaseInterface::deleteMetadata()
+     * {@inheritdoc}
      */
     public function deleteMetadata($publicKey, $imageIdentifier) {
         try {
@@ -252,7 +252,7 @@ class MongoDB implements DatabaseInterface {
     }
 
     /**
-     * @see Imbo\Database\DatabaseInterface::getImages()
+     * {@inheritdoc}
      */
     public function getImages($publicKey, QueryInterface $query) {
         // Initialize return value
@@ -283,7 +283,9 @@ class MongoDB implements DatabaseInterface {
         $metadataQuery = $query->metadataQuery();
 
         if (!empty($metadataQuery)) {
-            $queryData['metadata'] = $metadataQuery;
+            foreach ($metadataQuery as $key => $value) {
+                $queryData['metadata.' . $key] = $value;
+            }
         }
 
         // Fields to fetch
@@ -316,7 +318,7 @@ class MongoDB implements DatabaseInterface {
     }
 
     /**
-     * @see Imbo\Database\DatabaseInterface::load()
+     * {@inheritdoc}
      */
     public function load($publicKey, $imageIdentifier, ImageInterface $image) {
         try {
@@ -341,7 +343,7 @@ class MongoDB implements DatabaseInterface {
     }
 
     /**
-     * @see Imbo\Database\DatabaseInterface::getLastModified()
+     * {@inheritdoc}
      */
     public function getLastModified($publicKey, $imageIdentifier = null) {
         try {
@@ -376,7 +378,7 @@ class MongoDB implements DatabaseInterface {
     }
 
     /**
-     * @see Imbo\Database\DatabaseInterface::getNumImages()
+     * {@inheritdoc}
      */
     public function getNumImages($publicKey) {
         try {
@@ -393,16 +395,36 @@ class MongoDB implements DatabaseInterface {
     }
 
     /**
-     * @see Imbo\Database\DatabaseInterface::getStatus()
+     * {@inheritdoc}
      */
     public function getStatus() {
         return $this->getMongo()->connect();
     }
 
     /**
+     * {@inheritdoc}
+     */
+    public function getImageMimeType($publicKey, $imageIdentifier) {
+        try {
+            $data = $this->getCollection()->findOne(array(
+                'publicKey' => $publicKey,
+                'imageIdentifier' => $imageIdentifier,
+            ));
+        } catch (MongoException $e) {
+            throw new DatabaseException('Unable to fetch image metadata', 500, $e);
+        }
+
+        if ($data === null) {
+            throw new DatabaseException('Image not found', 404);
+        }
+
+        return $data['mime'];
+    }
+
+    /**
      * Get the mongo collection instance
      *
-     * @return MongoCollection
+     * @return \MongoCollection
      */
     protected function getCollection() {
         if ($this->collection === null) {
@@ -422,7 +444,7 @@ class MongoDB implements DatabaseInterface {
     /**
      * Get the mongo instance
      *
-     * @return Mongo
+     * @return \Mongo
      */
     protected function getMongo() {
         if ($this->mongo === null) {

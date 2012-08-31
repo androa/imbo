@@ -32,6 +32,9 @@
 
 namespace Imbo\Http\Request;
 
+use Imbo\Exception\InvalidArgumentException,
+    Imbo\Image\TransformationChain;
+
 /**
  * Request interface
  *
@@ -67,7 +70,7 @@ interface RequestInterface {
      * Set the public key
      *
      * @param string $key The key to set
-     * @return Imbo\Http\Request\RequestInterface
+     * @return RequestInterface
      */
     function setPublicKey($key);
 
@@ -85,7 +88,7 @@ interface RequestInterface {
      * Set the private key
      *
      * @param string $key The key to set
-     * @return Imbo\Http\Request\RequestInterface
+     * @return RequestInterface
      */
     function setPrivateKey($key);
 
@@ -95,10 +98,17 @@ interface RequestInterface {
      * If someone specified a transformation that does not exist, an
      * Imbo\Exception\InvalidArgumentException exception must be thrown.
      *
-     * @throws Imbo\Exception\InvalidArgumentException
-     * @return Imbo\Image\TransformationChain
+     * @throws InvalidArgumentException
+     * @return TransformationChain
      */
     function getTransformations();
+
+    /**
+     * Check whether or not the request includes image transformations
+     *
+     * @return boolean
+     */
+    function hasTransformations();
 
     /**
      * Get the current scheme (http or https)
@@ -161,7 +171,7 @@ interface RequestInterface {
      * Set the image identifier
      *
      * @param string $imageIdentifier The image identifier to set
-     * @return Imbo\Http\Request\RequestInterface
+     * @return RequestInterface
      */
     function setImageIdentifier($imageIdentifier);
 
@@ -175,19 +185,19 @@ interface RequestInterface {
     function getRealImageIdentifier();
 
     /**
-     * Get the current image extension (if any)
+     * Get the current requested extension (if any)
      *
      * @return string|null
      */
-    function getImageExtension();
+    function getExtension();
 
     /**
-     * Set the image extension
+     * Set the extension requested
      *
-     * @param string $extension The image extension to set
-     * @return Imbo\Http\Request\RequestInterface
+     * @param string $extension The extension to set
+     * @return RequestInterface
      */
-    function setImageExtension($extension);
+    function setExtension($extension);
 
     /**
      * Get the current HTTP method
@@ -211,35 +221,35 @@ interface RequestInterface {
      * This method must also update the current imageIdentifier
      *
      * @param string $data The data to set
-     * @return Imbo\Http\Request\RequestInterface
+     * @return RequestInterface
      */
     function setRawData($data);
 
     /**
      * Get the query container
      *
-     * @return Imbo\Http\ParameterContainerInterface
+     * @return ParameterContainerInterface
      */
     function getQuery();
 
     /**
      * Get the requerst container
      *
-     * @return Imbo\Http\ParameterContainer
+     * @return ParameterContainer
      */
     function getRequest();
 
     /**
      * Get the server container
      *
-     * @return Imbo\Http\ServerContainerInterface
+     * @return ServerContainerInterface
      */
     function getServer();
 
     /**
      * Get the HTTP headers
      *
-     * @return Imbo\Http\HeaderContainer
+     * @return HeaderContainer
      */
     function getHeaders();
 
@@ -249,4 +259,37 @@ interface RequestInterface {
      * @return boolean
      */
     function isUnsafe();
+
+    /**
+     * Split Accept-* headers
+     *
+     * @param string $header The header string to split, for instance "audio/*; q=0.2, audio/basic"
+     * @return array Returns an array with the media type as keys and the quality as values
+     */
+    function splitAcceptHeader($header);
+
+    /**
+     * Get the acceptable content types for the current request
+     *
+     * This method will return an array where the keys are the acceptable mime types, and the
+     * values are the quality associated with the mime types
+     *
+     * @return array
+     */
+    function getAcceptableContentTypes();
+
+    /**
+     * Set the resource name (one of the constants defined in Imbo\Resource\ResourceInterface)
+     *
+     * @param string $resource The name of the resource
+     * @return RequestInterface
+     */
+    function setResource($resource);
+
+    /**
+     * Get the resource name
+     *
+     * @return string
+     */
+    function getResource();
 }

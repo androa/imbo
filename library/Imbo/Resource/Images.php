@@ -36,7 +36,8 @@ use Imbo\Http\Request\RequestInterface,
     Imbo\Database\DatabaseInterface,
     Imbo\Storage\StorageInterface,
     Imbo\Resource\Images\Query,
-    Imbo\Resource\Images\QueryInterface;
+    Imbo\Resource\Images\QueryInterface,
+    DateTime;
 
 /**
  * Images resource
@@ -66,7 +67,7 @@ class Images extends Resource implements ImagesInterface {
     private $query;
 
     /**
-     * @see Imbo\Resource\ImagesInterface::getQuery()
+     * {@inheritdoc}
      */
     public function getQuery() {
         if ($this->query === null) {
@@ -77,7 +78,7 @@ class Images extends Resource implements ImagesInterface {
     }
 
     /**
-     * @see Imbo\Resource\ImagesInterface::setQuery()
+     * {@inheritdoc}
      */
     public function setQuery(QueryInterface $query) {
         $this->query = $query;
@@ -86,7 +87,7 @@ class Images extends Resource implements ImagesInterface {
     }
 
     /**
-     * @see Imbo\Resource\ResourceInterface::getAllowedMethods()
+     * {@inheritdoc}
      */
     public function getAllowedMethods() {
         return array(
@@ -96,7 +97,7 @@ class Images extends Resource implements ImagesInterface {
     }
 
     /**
-     * @see Imbo\Resource\ResourceInterface::get()
+     * {@inheritdoc}
      */
     public function get(RequestInterface $request, ResponseInterface $response, DatabaseInterface $database, StorageInterface $storage) {
         $publicKey = $request->getPublicKey();
@@ -154,11 +155,18 @@ class Images extends Resource implements ImagesInterface {
             }
         }
 
-        $response->setBody($database->getImages($publicKey, $query));
+        $images = $database->getImages($publicKey, $query);
+
+        foreach ($images as &$image) {
+            $image['added']   = $this->formatDate(new DateTime('@' . $image['added']));
+            $image['updated'] = $this->formatDate(new DateTime('@' . $image['updated']));
+        }
+
+        $response->setBody($images);
     }
 
     /**
-     * @see Imbo\Resource\ResourceInterface::head()
+     * {@inheritdoc}
      */
     public function head(RequestInterface $request, ResponseInterface $response, DatabaseInterface $database, StorageInterface $storage) {
         $this->get($request, $response, $database, $storage);

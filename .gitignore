@@ -1,4 +1,5 @@
 build
 phpunit.xml
-phpdoc.xml
-phpmd.xml
+composer.phar
+composer.lock
+vendor

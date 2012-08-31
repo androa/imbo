@@ -36,11 +36,13 @@ use Imbo\Database\DatabaseInterface,
     Imbo\Storage\StorageInterface,
     Imbo\EventListener\ListenerInterface,
     Imbo\Http\Request\Request,
+    Imbo\Http\Request\RequestInterface,
     Imbo\Http\Response\Response,
     Imbo\Http\Response\ResponseWriter,
     Imbo\Image\Image,
     Imbo\EventManager\EventManager,
-    Imbo\Exception\InvalidArgumentException;
+    Imbo\Exception\InvalidArgumentException,
+    DateTime;
 
 // Fetch the configuration
 $configPath = __DIR__ . '/../config/config.php';
@@ -118,8 +120,8 @@ $container->response = new Response();
 
 // Event manager
 $container->eventManager = $container->shared(function(Container $container) {
+    $manager = new EventManager($container);
     $listeners = $container->config['eventListeners'];
-    $manager = new EventManager($container->request, $container->response, $container->database, $container->storage, $container->image);
 
     foreach ($listeners as $def) {
         if (empty($def['listener'])) {
@@ -157,39 +159,72 @@ $frontController = new FrontController($container);
 // Create a response writer
 $responseWriter = new ResponseWriter();
 
+// Default mode for the response writer
+$strict = true;
+
 try {
     $frontController->handle($request, $response);
+
+    prepareResponse:
+
+    // Fetch the response body
+    $body = $response->getBody();
+
+    if (is_array($body)) {
+        // Write the correct response body. This will throw an exception if the client does not
+        // accept any of the supported content types and the $strict flag has been set to true.
+        try {
+            $responseWriter->write($body, $request, $response, $strict);
+        } catch (Exception $exception) {
+            // The response writer could not produce acceptable content. Flip flag and re-throw
+            $strict = false;
+
+            throw $exception;
+        }
+    }
 } catch (Exception $exception) {
-    $response->setStatusCode($exception->getCode());
+    $date = new DateTime();
+
+    $code         = $exception->getCode();
+    $message      = $exception->getMessage();
+    $timestamp    = $date->format('D, d M Y H:i:s') . ' GMT';
     $internalCode = $exception->getImboErrorCode();
 
     if ($internalCode === null) {
         $internalCode = Exception::ERR_UNSPECIFIED;
     }
 
-    $data = array(
-        'error' => array(
-            'code'          => $exception->getCode(),
-            'message'       => $exception->getMessage(),
-            'timestamp'     => gmdate('Y-m-d\TH:i:s\Z'),
-            'imboErrorCode' => $internalCode,
-        ),
-    );
+    $response->setStatusCode($code);
 
-    // Fetch the real image identifier (PUT only) or the one from the URL (if present)
-    if (($identifier = $request->getRealImageIdentifier()) || ($identifier = $request->getImageIdentifier())) {
-        $data['imageIdentifier'] = $identifier;
+    // Add error information to the response headers and remove the ETag and Last-Modified headers
+    $responseHeaders = $response->getHeaders();
+    $responseHeaders->set('X-Imbo-Error-Message', $message)
+                    ->set('X-Imbo-Error-InternalCode', $internalCode)
+                    ->set('X-Imbo-Error-Date', $timestamp)
+                    ->remove('ETag')
+                    ->remove('Last-Modified');
+
+    // Prepare response data if the request expects a response body
+    if ($request->getMethod() !== RequestInterface::METHOD_HEAD) {
+        $data = array(
+            'error' => array(
+                'code'          => $code,
+                'message'       => $message,
+                'date'          => $timestamp,
+                'imboErrorCode' => $internalCode,
+            ),
+        );
+
+        // Fetch the real image identifier (PUT only) or the one from the URL (if present)
+        if (($identifier = $request->getRealImageIdentifier()) || ($identifier = $request->getImageIdentifier())) {
+            $data['imageIdentifier'] = $identifier;
+        }
+
+        $response->setBody($data);
     }
 
-    $response->setBody($data);
-}
-
-// Fetch the response body
-$body = $response->getBody();
-
-if (is_array($body)) {
-    // Write the correct response body
-    $responseWriter->write($body, $request, $response);
+    // Go back up and prepare the new response
+    goto prepareResponse;
 }
 
 // Send the response to the client

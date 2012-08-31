@@ -22,55 +22,63 @@
  * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
  * IN THE SOFTWARE.
  *
- * @package Validators
+ * @package TestSuite\UnitTests
  * @author Christer Edvartsen <cogo@starzinger.net>
  * @copyright Copyright (c) 2011-2012, Christer Edvartsen <cogo@starzinger.net>
  * @license http://www.opensource.org/licenses/mit-license MIT License
  * @link https://github.com/imbo/imbo
  */
 
-namespace Imbo\Validate;
+namespace Imbo\UnitTest\Http;
+
+use Imbo\Http\ContentNegotiation;
 
 /**
- * Timestamp validator
- *
- * @package Validators
+ * @package TestSuite\UnitTests
  * @author Christer Edvartsen <cogo@starzinger.net>
  * @copyright Copyright (c) 2011-2012, Christer Edvartsen <cogo@starzinger.net>
  * @license http://www.opensource.org/licenses/mit-license MIT License
  * @link https://github.com/imbo/imbo
+ * @covers Imbo\Http\ContentNegotiation
  */
-class Timestamp implements ValidateInterface {
+class ContentNegotiationTest extends \PHPUnit_Framework_TestCase {
     /**
-     * Max. diff to tolerate in seconds
-     *
-     * @var int
+     * @var Imbo\Http\ContentNegotiation
      */
-    private $maxDiff = 120;
+    private $cn;
 
     /**
-     * @see Imbo\Validate\ValidateInterface::isValid()
+     * Set up
      */
-    public function isValid($value) {
-        if (!preg_match('/^[\d]{4}-[\d]{2}-[\d]{2}T[\d]{2}:[\d]{2}:[\d]{2}(?:\.\d+)?Z$/', $value)) {
-            return false;
-        }
+    public function setUp() {
+        $this->cn = new ContentNegotiation();
+    }
 
-        $year   = substr($value, 0, 4);
-        $month  = substr($value, 5, 2);
-        $day    = substr($value, 8, 2);
-        $hour   = substr($value, 11, 2);
-        $minute = substr($value, 14, 2);
-        $second = substr($value, 17, 2);
+    /**
+     * Tear down
+     */
+    public function tearDown() {
+        $this->cn = null;
+    }
 
-        $timestamp = gmmktime($hour, $minute, $second, $month, $day, $year);
+    /**
+     * @return array[]
+     */
+    public function getIsAcceptableData() {
+        return array(
+            array('image/png', array('image/png' => 1, 'image/*' => 0.9), 1),
+            array('image/png', array('text/html' => 1, '*/*' => 0.9), 0.9),
+            array('image/png', array('text/html' => 1), false),
+            array('image/jpeg', array('application/json' => 1, 'text/*' => 0.9), false),
+            array('application/json', array('text/html;level=1' => 1, 'text/html' => 0.9, '*/*' => 0.8, 'text/html;level=2' => 0.7, 'text/*' => 0.9), 0.8),
+        );
+    }
 
-        $diff = time() - $timestamp;
-
-        if ($diff > $this->maxDiff || $diff < -$this->maxDiff) {
-            return false;
-        }
-
-        return true;
+    /**
+     * @dataProvider getIsAcceptableData
+     * @covers Imbo\Http\ContentNegotiation::isAcceptable
+     */
+    public function testIsAcceptable($mimeType, $acceptable, $result) {
+        $this->assertSame($result, $this->cn->isAcceptable($mimeType, $acceptable));
     }
 }

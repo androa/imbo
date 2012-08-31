@@ -32,6 +32,9 @@
 
 namespace Imbo\Http\Response\Formatter;
 
+use Imbo\Http\Request\RequestInterface,
+    Imbo\Http\Response\ResponseInterface;
+
 /**
  * Interface for formatters
  *
@@ -47,9 +50,11 @@ interface FormatterInterface {
      * Format data
      *
      * @param array $data The data to format
+     * @param RequestInterface $request The current request
+     * @param ResponseInterface $response The current response
      * @return string Formatted data ready to be sent to the client
      */
-    function format(array $data);
+    function format(array $data, RequestInterface $request, ResponseInterface $response);
 
     /**
      * Get the content type for the current formatter

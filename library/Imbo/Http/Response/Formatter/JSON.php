@@ -22,64 +22,52 @@
  * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
  * IN THE SOFTWARE.
  *
- * @package Interfaces
- * @subpackage Validators
+ * @package Http\Response
+ * @subpackage Formatters
  * @author Christer Edvartsen <cogo@starzinger.net>
  * @copyright Copyright (c) 2011-2012, Christer Edvartsen <cogo@starzinger.net>
  * @license http://www.opensource.org/licenses/mit-license MIT License
  * @link https://github.com/imbo/imbo
  */
 
-namespace Imbo\Validate;
+namespace Imbo\Http\Response\Formatter;
+
+use Imbo\Http\Request\RequestInterface,
+    Imbo\Http\Response\ResponseInterface;
 
 /**
- * Signature validator interface
+ * JSON formatter
  *
- * @package Interfaces
- * @subpackage Validators
+ * @package Http\Response
+ * @subpackage Formatters
  * @author Christer Edvartsen <cogo@starzinger.net>
  * @copyright Copyright (c) 2011-2012, Christer Edvartsen <cogo@starzinger.net>
  * @license http://www.opensource.org/licenses/mit-license MIT License
  * @link https://github.com/imbo/imbo
  */
-interface SignatureInterface extends ValidateInterface {
+class JSON implements FormatterInterface {
     /**
-     * Set the HTTP method to use when generating the signature
-     *
-     * @param string $method The method to set
-     * @return Imbo\Validate\SignatureInterface
+     * {@inheritdoc}
      */
-    function setHttpMethod($method);
+    public function format(array $data, RequestInterface $request, ResponseInterface $response) {
+        // Simply encode the data to JSON, no matter what resource we are dealing with
+        $jsonEncoded = json_encode($data);
+        $query = $request->getQuery();
+
+        foreach (array('callback', 'jsonp', 'json') as $param) {
+            if ($query->has($param)) {
+                $jsonEncoded = sprintf("%s(%s)", $query->get($param), $jsonEncoded);
+                break;
+            }
+        }
+
+        return $jsonEncoded;
+    }
 
     /**
-     * Set the URL to use when generating the signature
-     *
-     * @param string $url The URL to set
-     * @return Imbo\Validate\SignatureInterface
+     * {@inheritdoc}
      */
-    function setUrl($url);
-
-    /**
-     * Set the timestamp to use when generating the signature
-     *
-     * @param string $timestamp The timestamp to set
-     * @return Imbo\Validate\SignatureInterface
-     */
-    function setTimestamp($timestamp);
-
-    /**
-     * Set the public key to use when generating the signature
-     *
-     * @param string $key The key to set
-     * @return Imbo\Validate\SignatureInterface
-     */
-    function setPublicKey($key);
-
-    /**
-     * Set the private key to use when generating the signature
-     *
-     * @param string $key The key to set
-     * @return Imbo\Validate\SignatureInterface
-     */
-    function setPrivateKey($key);
+    public function getContentType() {
+        return 'application/json';
+    }
 }
