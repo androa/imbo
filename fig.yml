@@ -1,0 +1,13 @@
+web:
+  build: .
+  ports:
+    - "80"
+  volumes:
+    - ./config:/imbo/config:ro
+    - ./data/images:/data/images
+  links:
+    - mongo
+mongo:
+  image: dockerfile/mongodb
+  volumes:
+    - ./data/db:/data/db
