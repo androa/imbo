@@ -23,13 +23,6 @@ use Imbo\Exception\InvalidArgumentException,
  */
 class Request extends SymfonyRequest {
     /**
-     * The private key
-     *
-     * @var string
-     */
-    private $privateKey;
-
-    /**
      * Image instance
      *
      * @var Image
@@ -77,31 +70,11 @@ class Request extends SymfonyRequest {
      * @return string
      */
     public function getPublicKey() {
-        return $this->route ? $this->route->get('publicKey') : null;
-    }
-
-    /**
-     * Get the private key
-     *
-     * The private key property is populated by the server based on the public key from the
-     * request. The client itself does not place the private key in the request.
-     *
-     * @return string
-     */
-    public function getPrivateKey() {
-        return $this->privateKey;
-    }
-
-    /**
-     * Set the private key
-     *
-     * @param string $key The key to set
-     * @return Request
-     */
-    public function setPrivateKey($key) {
-        $this->privateKey = $key;
-
-        return $this;
+        return (
+            $this->headers->get('X-Imbo-PublicKey', null) ?:
+            $this->query->get('publicKey', null) ?:
+            ($this->route ? $this->route->get('publicKey') : null)
+        );
     }
 
     /**
@@ -161,6 +134,18 @@ class Request extends SymfonyRequest {
         }
 
         return $this->transformations;
+    }
+
+    /**
+     * Set the transformation chain
+     *
+     * @param array $transformations The image transformations
+     * @return self
+     */
+    public function setTransformations(array $transformations) {
+        $this->transformations = $transformations;
+
+        return $this;
     }
 
     /**

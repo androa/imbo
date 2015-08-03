@@ -132,6 +132,11 @@ class ImboContext extends RESTContext {
             $query->remove('signature');
             $query->remove('timestamp');
 
+            // Add public key to query if we're told not to use headers
+            if (!$useHeaders) {
+                $query->set('publicKey', $this->publicKey);
+            }
+
             $timestamp = gmdate('Y-m-d\TH:i:s\Z');
             $data = $request->getMethod() . '|' . urldecode($request->getUrl()) . '|' . $this->publicKey . '|' . $timestamp;
 
@@ -140,6 +145,7 @@ class ImboContext extends RESTContext {
 
             if ($useHeaders) {
                 $request->addHeaders(array(
+                    'X-Imbo-PublicKey'              => $this->publicKey,
                     'X-Imbo-Authenticate-Signature' => $signature,
                     'X-Imbo-Authenticate-Timestamp' => $timestamp,
                 ));
@@ -274,6 +280,35 @@ class ImboContext extends RESTContext {
         foreach ($imagick->getImageProperties() as $key => $value) {
             assertStringStartsNotWith($tag, $key, 'Properties exist that should have been stripped');
         }
+    }
+
+    /**
+     * @Given /^the pixel at coordinate "([^"]*)" should have a color of "#([^"]*)"$/
+     */
+    public function assertImagePixelColor($coordinates, $expectedColor) {
+        $coordinates = array_map('trim', explode(',', $coordinates));
+        $coordinates = array_map('intval', $coordinates);
+
+        $expectedColor = strtolower($expectedColor);
+
+        $imagick = new \Imagick();
+        $imagick->readImageBlob((string) $this->getLastResponse()->getBody());
+
+        $pixel = $imagick->getImagePixelColor($coordinates[0], $coordinates[1]);
+        $color = $pixel->getColor();
+
+        $toHex = function($col) {
+            return str_pad(dechex($col), 2, '0', STR_PAD_LEFT);
+        };
+
+        $hexColor = $toHex($color['r']) . $toHex($color['g']) . $toHex($color['b']);
+
+        assertSame(
+            $expectedColor,
+            $hexColor,
+            'Incorrect color at coordinate ' . implode(', ', $coordinates) .
+            ', expected ' . $expectedColor . ', got ' . $hexColor
+        );
     }
 
     /**
